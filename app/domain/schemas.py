@@ -1,0 +1,62 @@
+from __future__ import annotations
+from pydantic import BaseModel, Field, HttpUrl
+
+
+class IngestRequest(BaseModel):
+    repo_url: str
+    token: str | None = Field(default=None, repr=False)
+    branch: str | None = None
+    include_globs: list[str] = ["**/*"]
+    exclude_globs: list[str] = [
+        "**/.git/**", "**/node_modules/**", "**/.venv/**", "**/venv/**",
+        "**/dist/**", "**/build/**", "**/__pycache__/**", "**/*.min.js",
+        "**/vendor/**", "**/target/**",
+    ]
+
+
+class IngestResponse(BaseModel):
+    repo_id: str
+    commit_sha: str
+    files_seen: int
+    chunks_indexed: int
+    embeddings_reused: int
+
+
+class QueryRequest(BaseModel):
+    question: str = Field(min_length=3)
+    repo_id: str | None = None
+    top_k: int | None = Field(default=None, ge=1, le=20)
+
+
+class Citation(BaseModel):
+    file_path: str
+    start_line: int
+    end_line: int
+    chunk_id: str
+    symbol_name: str
+
+
+class QueryResponse(BaseModel):
+    answer: str
+    citations: list[Citation]
+    retrieved_chunks: int
+
+
+class EvalRequest(BaseModel):
+    dataset_path: str = "data/eval/sample_qrels.jsonl"
+    repo_id: str | None = None
+    k: int = Field(default=8, ge=1, le=50)
+
+
+class EvalItem(BaseModel):
+    question: str
+    precision_at_k: float
+    recall_at_k: float
+    retrieved_chunk_ids: list[str]
+    relevant_chunk_ids: list[str]
+
+
+class EvalResponse(BaseModel):
+    mean_context_precision: float
+    mean_context_recall: float
+    items: list[EvalItem]

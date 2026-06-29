@@ -5,7 +5,15 @@ from app.services.chunking import ASTChunker
 from app.services.indexing import VectorIndex
 from app.services.retrieval import HybridRetriever
 from app.services.generation import AnswerGenerator
+from app.services.evaluation import EvaluationService
 from app.storage.chunk_store import ChunkStore
+
+from app.domain.schemas import (
+    IngestRequest,
+    IngestResponse,
+    QueryResponse,
+    EvalResponse,
+)
 
 
 class RAGPipeline:
@@ -16,6 +24,10 @@ class RAGPipeline:
         self.vectors = VectorIndex()
         self.retriever = HybridRetriever(self.store, self.vectors)
         self.generator = AnswerGenerator()
+        self.evaluation = EvaluationService(
+            retriever=self.retriever,
+            generator=self.generator,
+        )
 
     def ingest(self, req: IngestRequest) -> IngestResponse:
         repo_id, path, commit_sha = self.repos.clone_or_update(req.repo_url, req.token, req.branch)
@@ -29,3 +41,18 @@ class RAGPipeline:
         results = self.retriever.retrieve(question, repo_id, top_k)
         answer, citations = self.generator.generate(question, results)
         return QueryResponse(answer=answer, citations=citations, retrieved_chunks=len(results))
+    
+    def evaluate(
+        self,
+        dataset_path: str,
+        repo_id: str | None = None,
+        k: int = 5,
+    ) -> EvalResponse:
+        return self.evaluation.evaluate(
+            dataset_path=dataset_path,
+            repo_id=repo_id,
+            k=k,
+        )
+
+    def close(self) -> None:
+        self.vectors.client.close()

@@ -1,12 +1,12 @@
 from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from app.domain.schemas import IngestRequest, IngestResponse, QueryRequest, QueryResponse, EvalRequest, EvalResponse
-from app.services.evaluation import EvaluationService
+# from app.services.evaluation import EvaluationService
 from app.services.pipeline import RAGPipeline
 
 router = APIRouter()
 pipeline = RAGPipeline()
-evaluator = EvaluationService(pipeline.retriever)
+# evaluator = EvaluationService(pipeline.retriever)
 
 
 @router.get("/health")
@@ -18,8 +18,10 @@ def health() -> dict[str, str]:
 def ingest(req: IngestRequest) -> IngestResponse:
     try:
         return pipeline.ingest(req)
-    except Exception as exc:
+    except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.post("/query", response_model=QueryResponse)
@@ -33,13 +35,27 @@ def query(req: QueryRequest) -> QueryResponse:
 @router.post("/eval", response_model=EvalResponse)
 def evaluate(req: EvalRequest) -> EvalResponse:
     try:
-        return evaluator.evaluate(req.dataset_path, req.repo_id, req.k)
+        return pipeline.evaluate(
+            dataset_path=req.dataset_path, 
+            repo_id=req.repo_id, 
+            k=req.k
+        )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc),) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.get("/eval", response_model=EvalResponse)
 def evaluate_default() -> EvalResponse:
-    return evaluator.evaluate("data/eval/sample_qrels.jsonl", None, 8)
+    try:
+        return pipeline.evaluate("data/eval/sample_qrels.jsonl", None, 8)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc),) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+

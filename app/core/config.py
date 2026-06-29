@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     final_top_k: int = Field(default=8, ge=1, le=100)
     max_context_tokens: int = Field(default=12_000, ge=100)
 
+    deepeval_model: str = "gpt-4.1-mini"
+    deepeval_threshold: float = 0.7
+    deepeval_include_reason: bool = True
+
     def ensure_dirs(self) -> None:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.qdrant_path.mkdir(parents=True, exist_ok=True)

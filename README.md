@@ -15,7 +15,7 @@ A modular implementation: ingest remote repositories, create AST-aware code chun
 - Cross-encoder reranking before context-budget enforcement.
 - OpenAI answer generation with strict source grounding; retrieval-only fallback when no key is configured.
 - FastAPI endpoints: `POST /ingest`, `POST /query`, `GET|POST /eval`.
-- Evaluation framework for Context Precision@K and Context Recall@K.
+- Evaluation framework DeepEval for Contextual Precision and Contextual Recall.
 
 ## Project structure
 
@@ -43,3 +43,122 @@ docs/architecture.png          # architecture diagram
 tests/                         # unit tests
 ```
 
+## Quick start
+
+```bash
+python -m venv .venv
+source .venv/bin/activate      # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env
+uvicorn app.main:app
+```
+
+Swagger UI: `http://localhost:8000/docs`
+
+The first startup downloads the embedding and reranking models. Set `OPENAI_API_KEY` in `.env` for generated answers. Without it, `/query` still returns the strongest grounded source matches and citations.
+
+## API examples
+
+### Ingest a public repository
+
+```bash
+curl -X POST http://localhost:8000/ingest \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "repo_url": "https://github.com/tiangolo/fastapi.git",
+    "branch": "master"
+  }'
+```
+
+### Ingest a private repository
+
+```bash
+curl -X POST http://localhost:8000/ingest \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "repo_url": "https://gitlab.com/acme/private-service.git",
+    "token": "YOUR_TOKEN",
+    "branch": "main"
+  }'
+```
+
+The token is used only to authenticate the clone/fetch operation. The implementation resets the Git remote to the original non-token URL afterward.
+
+### Query
+
+```bash
+curl -X POST http://localhost:8000/query \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "question": "How is authentication middleware initialized?",
+    "repo_id": "REPO_ID_FROM_INGEST",
+    "top_k": 8
+  }'
+```
+
+Every response contains source citations with `file_path`, `start_line`, `end_line`, `chunk_id`, and `symbol_name`.
+
+### Evaluate
+
+```bash
+curl -X POST http://localhost:8000/eval \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "dataset_path": "data/eval/my_qrels.jsonl",
+    "repo_id": "REPO_ID_FROM_INGEST",
+    "k": 8
+  }'
+```
+
+## Evaluation framework
+
+Create JSONL records after ingestion, using actual chunk IDs returned by the index/database:
+
+```json
+{"question":"Where is an invoice persisted after charging?","repo_id":"abc123","relevant_chunk_ids":["chunk-a","chunk-b"]}
+```
+
+For each question:
+
+- `Context Precision@K = relevant retrieved chunks / retrieved chunks`
+- `Context Recall@K = relevant retrieved chunks / all annotated relevant chunks`
+
+The report contains per-question scores and macro means. For credible evaluation, annotate 20–50 representative questions across navigation, implementation details, cross-file dependencies, configuration, and failure-handling behavior. Keep annotators blind to retrieval ranking where possible.
+
+Recommended experiment matrix:
+
+| Run | Dense | BM25 | Dependency expansion | Reranker |
+|---|---:|---:|---:|---:|
+| A | ✓ |  |  |  |
+| B | ✓ | ✓ |  |  |
+| C | ✓ | ✓ | ✓ |  |
+| D | ✓ | ✓ | ✓ | ✓ |
+
+This ablation isolates the contribution of each retrieval stage. Record latency, Precision@K, Recall@K, and answer citation correctness.
+
+## Design decisions
+
+1. **AST-first chunking** preserves functions/classes and therefore improves source usefulness over fixed windows.
+2. **Hybrid retrieval** covers semantic questions and exact identifiers.
+3. **Reciprocal-rank fusion** avoids assuming dense and BM25 scores are calibrated.
+4. **Dependency expansion** adds chunks connected through imports and referenced symbols.
+5. **Cross-encoder reranking** applies expensive query-document scoring only to a bounded candidate pool.
+6. **Stable provenance** makes every answer auditable to file, lines, and chunk.
+7. **Local defaults** keep the demo easy to run; Qdrant, SQL metadata, and model providers can be swapped behind service boundaries.
+
+## Production hardening
+
+For a high-volume deployment, replace local Qdrant and SQLite with managed Qdrant/OpenSearch and PostgreSQL; enqueue ingestion with Celery, Dramatiq, or a cloud queue; encrypt repository tokens in a secret manager; add tenant isolation, webhooks for incremental indexing, observability, rate limiting, malware/file-size checks, and CI security scanning.
+
+## Tests
+
+```bash
+pytest -q
+```
+
+## Docker
+
+```bash
+cp .env.example .env
+docker compose up --build
+```

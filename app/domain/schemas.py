@@ -48,15 +48,57 @@ class EvalRequest(BaseModel):
     k: int = Field(default=8, ge=1, le=50)
 
 
+# class EvalItem(BaseModel):
+#     question: str
+#     precision_at_k: float
+#     recall_at_k: float
+#     retrieved_chunk_ids: list[str]
+#     relevant_chunk_ids: list[str]
+
+
+class DeepEvalMetricResult(BaseModel):
+    score: float | None = None
+    threshold: float
+    success: bool
+    reason: str | None = None
+    error: str | None = None
+
+
 class EvalItem(BaseModel):
     question: str
+
+    actual_output: str
+    expected_output: str | None = None
+
     precision_at_k: float
     recall_at_k: float
-    retrieved_chunk_ids: list[str]
-    relevant_chunk_ids: list[str]
+
+    retrieved_chunk_ids: list[str] = Field(default_factory=list)
+    relevant_chunk_ids: list[str] = Field(default_factory=list)
+
+    contextual_precision: DeepEvalMetricResult | None = None
+    contextual_recall: DeepEvalMetricResult | None = None
+    faithfulness: DeepEvalMetricResult | None = None
+    answer_relevancy: DeepEvalMetricResult | None = None
+
+
+# class EvalResponse(BaseModel):
+#     mean_context_precision: float
+#     mean_context_recall: float
+#     items: list[EvalItem]
 
 
 class EvalResponse(BaseModel):
+    total_items: int
+
     mean_context_precision: float
     mean_context_recall: float
-    items: list[EvalItem]
+
+    mean_deepeval_contextual_precision: float | None = None
+    mean_deepeval_contextual_recall: float | None = None
+    mean_faithfulness: float | None = None
+    mean_answer_relevancy: float | None = None
+
+    pass_rate: float | None = None
+
+    items: list[EvalItem] = Field(default_factory=list)

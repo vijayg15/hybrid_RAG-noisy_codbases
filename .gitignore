@@ -17,6 +17,7 @@ data/rag.db
 /tests/
 *.pyc
 .DS_Store
+.deepeval/
 
 # Environments
 .env

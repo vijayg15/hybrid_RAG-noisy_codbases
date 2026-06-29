@@ -125,15 +125,6 @@ For each question:
 
 The report contains per-question scores and macro means. For credible evaluation, annotate 20–50 representative questions across navigation, implementation details, cross-file dependencies, configuration, and failure-handling behavior. Keep annotators blind to retrieval ranking where possible.
 
-Recommended experiment matrix:
-
-| Run | Dense | BM25 | Dependency expansion | Reranker |
-|---|---:|---:|---:|---:|
-| A | ✓ |  |  |  |
-| B | ✓ | ✓ |  |  |
-| C | ✓ | ✓ | ✓ |  |
-| D | ✓ | ✓ | ✓ | ✓ |
-
 This ablation isolates the contribution of each retrieval stage. Record latency, Precision@K, Recall@K, and answer citation correctness.
 
 ## Design decisions
